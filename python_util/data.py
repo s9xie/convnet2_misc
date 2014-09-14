@@ -55,6 +55,7 @@ class DataProvider:
         return epoch, batchnum, self.data_dic
             
     def get_batch(self, batch_num):
+        # using subbatches to use multiple threads to load data (unpickle the pickled file)
         fname = self.get_data_file_name(batch_num)
         if os.path.isdir(fname): # batch in sub-batches
             sub_batches = sorted(os.listdir(fname), key=alphanum_key)
