@@ -1402,7 +1402,8 @@ class CrossEntCostParser(CostParser):
         
         print "Initialized cross-entropy cost '%s' on GPUs %s" % (name, dic['gpus'])
         return dic
-    
+
+
 class LogregCostParser(CostParser):
     def __init__(self):
         CostParser.__init__(self, num_inputs=2)
@@ -1426,6 +1427,37 @@ class LogregCostParser(CostParser):
                                     % (name, dic['inputs'][1], model.train_data_provider.get_num_classes()))
             
         print "Initialized logistic regression cost '%s' on GPUs %s" % (name, dic['gpus'])
+        return dic
+
+    
+class TaskLogregCostParser(CostParser):
+    def __init__(self):
+        CostParser.__init__(self, num_inputs=2)
+        
+    def add_params(self, mcp):
+        CostParser.add_params(self, mcp)
+        dic, name = self.dic, self.dic['name']
+        dic['topk'] = mcp.safe_get_int(name, 'topk', default=1)
+        if dic['topk'] > dic['numInputs'][1]:
+            raise LayerParsingError("Layer '%s': parameter 'topk'must not have value greater than the number of classess."  % (name))
+
+
+    def parse(self, name, mcp, prev_layers, model):
+        dic = CostParser.parse(self, name, mcp, prev_layers, model)
+        dic['taskId'] = mcp.safe_get_int(name, 'taskId')
+        dic['taskName'] = mcp.safe_get(name, 'taskName')
+        dic['requiresParams'] = True
+        if dic['numInputs'][0] != 1: # first input must be labels
+            raise LayerParsingError("Layer '%s': dimensionality of first input must be 1" % name)
+        if dic['numInputs'][1] != 1: # second input must be tasks
+            raise LayerParsingError("TaskLayer '%s': dimensionality of first input must be 1" % name)
+        if dic['inputLayers'][2]['type'] != 'softmax':
+            raise LayerParsingError("Layer '%s': second input must be softmax layer" % name)
+        if dic['numInputs'][2] != model.train_data_provider.get_num_classes(dic['taskName']):
+            raise LayerParsingError("Layer '%s': softmax input '%s' must produce %d outputs, because that is the number of classes of task '%s' in the dataset" \
+                                    % (name, dic['inputs'][1], model.train_data_provider.get_num_classes(dic['taskName']),dic['taskName']))
+            
+        print "Initialized task logistic regression cost '%s' on GPUs %s" % (name, dic['gpus'])
         return dic
     
 class BinomialCrossEntCostParser(CostParser):
@@ -1504,6 +1536,7 @@ layer_parsers = {'data' :           lambda : DataLayerParser(),
                  'dropout':         lambda : DropoutLayerParser(),
                  'dropout2':        lambda : Dropout2LayerParser(),
                  'cost.logreg':     lambda : LogregCostParser(),
+                 'cost.tasklogreg': lambda : TaskLogregCostParser(),
                  'cost.ce':         lambda : CrossEntCostParser(),
                  'cost.bce':        lambda : BinomialCrossEntCostParser(),
                  'cost.dce':        lambda : DetectionCrossEntCostParser(),
