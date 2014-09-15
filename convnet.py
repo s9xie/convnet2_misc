@@ -275,6 +275,7 @@ class ConvNet(IGPUModel):
 
         DataProvider.register_data_provider('dummy-lr-n', 'Dummy ConvNet logistic regression', DummyConvNetLogRegDataProvider)
         DataProvider.register_data_provider('image', 'JPEG-encoded image data provider', ImageDataProvider)
+        DataProvider.register_data_provider('taskscotr', 'JPEG-encoded image data provider with Tasks', TasksCotrDataProvider)
         DataProvider.register_data_provider('cifar', 'CIFAR-10 data provider', CIFARDataProvider)
   
         return op
