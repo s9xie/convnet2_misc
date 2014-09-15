@@ -66,20 +66,24 @@ def makedir(path):
 #    tf.close()
 #    return labels_dic, label_names, validation_ground_truth
 
-def write_batches(target_dir, name, start_batch_num, labels, jpeg_files):
+def write_batches(target_dir, name, start_batch_num, labels, tasks, jpeg_files):
     jpeg_files = partition_list(jpeg_files, OUTPUT_BATCH_SIZE)
     labels = partition_list(labels, OUTPUT_BATCH_SIZE)
+    tasks = partition_list(tasks, OUTPUT_BATCH_SIZE)
     makedir(target_dir)
     print "Writing %s batches..." % name
-    for i,(labels_batch, jpeg_file_batch) in enumerate(zip(labels, jpeg_files)):
+    for i,(labels_batch, tasks_batch, jpeg_file_batch) in enumerate(zip(labels, tasks, jpeg_files)):
         t = time()
         jpeg_strings = list(itertools.chain.from_iterable(resizeJPEG([jpeg.read() for jpeg in jpeg_file_batch], OUTPUT_IMAGE_SIZE, NUM_WORKER_THREADS, CROP_TO_SQUARE)))
         batch_path = os.path.join(target_dir, 'data_batch_%d' % (start_batch_num + i))
         makedir(batch_path)
+        assert len(labels_batch) == len(tasks_batch), "tasks dim should be the same as labels dim"
+
         for j in xrange(0, len(labels_batch), OUTPUT_SUB_BATCH_SIZE):
             pickle(os.path.join(batch_path, 'data_batch_%d.%d' % (start_batch_num + i, j/OUTPUT_SUB_BATCH_SIZE)), 
                    {'data': jpeg_strings[j:j+OUTPUT_SUB_BATCH_SIZE],
-                    'labels': labels_batch[j:j+OUTPUT_SUB_BATCH_SIZE]})
+                    'labels': labels_batch[j:j+OUTPUT_SUB_BATCH_SIZE],
+                     'tasks':tasks_batch[j:j+OUTPUT_SUB_BATCH_SIZE]})
         print "Wrote %s (%s batch %d of %d) (%.2f sec)" % (batch_path, name, i+1, len(jpeg_files), time() - t)
     return i + 1
 
@@ -142,12 +146,6 @@ if __name__ == "__main__":
             train_jpeg_files += [tf.extractfile(members[i])]
             
         shuffle(train_jpeg_files)
-        #jpeg_ = train_jpeg_files[0]
-	#print "Sample label name and label"
-        #print jpeg_.name.split('/')[1]
-        #if "__" not in labels_dic[jpeg_.name.split('/')[1]]:
-	#	print "What'd hell is wrong with the label?"
-	#	sys.exit(1)
         
         train_labels = [[labels_dic[jpeg.name.split('/')[1]]] for jpeg in train_jpeg_files]
         tasks        = [[task_dic[jpeg.name.split('/')[0].split('_')[0]]] for jpeg in train_jpeg_files]
@@ -172,7 +170,7 @@ if __name__ == "__main__":
 	validation_labels = [[labels_dic[jpeg.name.split('/')[1]]] for jpeg in validation_jpeg_files]
     tasks        = [[task_dic[jpeg.name.split('/')[0].split('_')[0]]] for jpeg in validation_jpeg_files]
 
-        write_batches(args.tgt_dir, 'validation', val_batch_start, validation_labels, validation_jpeg_files)
+        write_batches(args.tgt_dir, 'validation', val_batch_start, validation_labels,, tasks, validation_jpeg_files)
     
     # Write meta file
     meta = unpickle('input_meta')
