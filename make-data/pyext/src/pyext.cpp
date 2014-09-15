@@ -94,6 +94,10 @@ void DecoderThread::makeJPEG(int idx) {
     vector<uchar> src_vec(src, src + src_len);
 
     cv::Mat decoded_mat = cv::imdecode(cv::Mat(src_vec), CV_LOAD_IMAGE_COLOR);
+    
+    //if(decoded_mat.channels() != 3) 
+    //	return;
+    
     assert(decoded_mat.channels() == 3);
 
     /*
@@ -104,6 +108,10 @@ void DecoderThread::makeJPEG(int idx) {
 
     int new_height = round(scale_factor * decoded_mat.size().height);
     int new_width = round(scale_factor * decoded_mat.size().width);
+    //if(!((new_height == _target_size && new_width >= _target_size)
+    //       || (new_width == _target_size && new_height >= _target_size)))
+    //	return;
+
     assert((new_height == _target_size && new_width >= _target_size)
            || (new_width == _target_size && new_height >= _target_size));
     int interpolation = scale_factor == 1 ? cv::INTER_LINEAR
