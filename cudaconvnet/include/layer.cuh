@@ -176,6 +176,7 @@ public:
     virtual std::map<int,NVMatrix*> getAllActs();
     virtual std::map<int, NVMatrix*> getAllActsGrads();
     virtual bool postInit();
+    virtual int getTaskId();
     int getDeviceID();
     ConvNetThread& getConvNetThread();
     cudaStream_t getStream();

@@ -14,8 +14,11 @@
 # limitations under the License.
 ###############################################################################
 
-# Fill in the below environment variables.
-#
+# Fill in these environment variables.
+# I have tested this code with CUDA 5.5 and 6.0. It runs about 10% faster with
+# CUDA 5.5. I don't know why this is. But for this reason I recommend CUDA 5.5.
+# Only use Kepler-generation cards. Older cards won't work.
+
 # If you're not sure what these paths should be, 
 # you can use the find command to try to locate them.
 # For example, NUMPY_INCLUDE_PATH contains the file
