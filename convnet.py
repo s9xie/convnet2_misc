@@ -22,7 +22,8 @@ from python_util.gpumodel import *
 import sys
 import math as m
 import layer as lay
-from convdata import ImageDataProvider, CIFARDataProvider, DummyConvNetLogRegDataProvider
+from convdata import *
+#TasksImageDataProvider, CIFARDataProvider, DummyConvNetLogRegDataProvider
 from os import linesep as NL
 import copy as cp
 import os
