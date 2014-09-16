@@ -1185,6 +1185,14 @@ void NVMatrix::smallerThanScalar(float scalar, NVMatrix& target) {
     apply(NVMatrixOps::SmallerThanScalar(scalar), target);
 }
 
+void NVMatrix::equalToScalar(float scalar) {
+    equalToScalar(scalar, *this);
+}
+
+void NVMatrix::equalToScalar(float scalar, NVMatrix& target) {
+    apply(NVMatrixOps::EqualToScalar(scalar), target);
+}
+
 void NVMatrix::addScalar(float scaleThis, float scalar, NVMatrix& target) {
     apply(NVMatrixOps::WeightedAddScalar(scaleThis, scalar), target);
 }

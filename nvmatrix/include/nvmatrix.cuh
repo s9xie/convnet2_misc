@@ -532,6 +532,8 @@ public:
     void biggerThanScalar(float scalar, NVMatrix& target);
     void smallerThanScalar(float scalar);
     void smallerThanScalar(float scalar, NVMatrix& target);
+    void equalToScalar(float scalar);
+    void equalToScalar(float scalar, NVMatrix& target);
     void addScalar(float scaleThis, float scalar, NVMatrix& target);
     void addScalar(float scalar, NVMatrix& target);
     void addScalar(float scalar);

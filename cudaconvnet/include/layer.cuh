@@ -756,6 +756,29 @@ public:
     NVMatrix& getProbsAccum(int replicaIdx);
 };
 
+
+/*
+ * Input 0: tasks
+ * Input 1: labels
+ * Input 2: softmax outputs
+ */
+class TaskLogregCostLayer : public CostLayer {
+protected:
+    NVMatrix _trueLabelLogProbs, _correctProbs, _topkProbs;
+    std::map<int,NVMatrix*> _probsAccum; // input replica idx -> nvmatrix
+    NVMatrix _maxProbs;
+    std::map<int,int> _numAccumed; // input replica idx -> int
+    int _topk;
+    int _taskId;
+    bool _doCompute;
+    virtual void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType, int passIdx);
+    void bpropActs(NVMatrix& v, int replicaIdx, int inpIdx, float scaleTargets, PASS_TYPE passType);
+public:
+    int getTaskId();
+    LogregCostLayer(ConvNetThread* convNetThread, PyObject* paramsDict, int replicaID);
+    NVMatrix& getProbsAccum(int replicaIdx);
+};
+
 /*
  * Input 0: labels
  * Input 1: logistic outputs
