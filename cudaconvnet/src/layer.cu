@@ -2211,7 +2211,7 @@ void DetectionCrossEntropyCostLayer::fpropActs(int inpIdx, float scaleTargets, P
  * TaskLogregCostLayer
  * =====================
  */
-TaskLogregCostLayer::TaskLogregCostLayer(ConvNetThread* convNetThread, PyObject* paramsDict, int replicaID) : CostLayer(convNetThread, paramsDict, replicaID, false) {
+TaskLogregCostLayer::TaskLogregCostLayer(ConvNetThread* convNetThread, PyObject* paramsDict, int replicaID) : LogregCostLayer(convNetThread, paramsDict, replicaID) {
     _topk = pyDictGetInt(paramsDict, "topk");
     _taskId = pyDictGetInt(paramsDict, "taskId");
     assert(_taskId >= 0);
@@ -2275,9 +2275,9 @@ NVMatrix& TaskLogregCostLayer::getProbsAccum(int replicaIdx) {
     return *_probsAccum[replicaIdx];
 }
 
-void TaskLogregCostLayer::bprop(PASS_TYPE passType) {
+void TaskLogregCostLayer::bprop(PASS_TYPE passType, int passIdx) {
    if (_coeff != 0) {
-        Layer::bprop(passType);
+        Layer::bprop(passType, passIdx);
     }
 }
 

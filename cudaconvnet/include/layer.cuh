@@ -772,6 +772,7 @@ protected:
     int _topk;
     int _taskId;
     bool _doCompute;
+    void bprop(PASS_TYPE passType, int passIdx);
     virtual void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType, int passIdx);
     void bpropActs(NVMatrix& v, int replicaIdx, int inpIdx, float scaleTargets, PASS_TYPE passType);
 public:
