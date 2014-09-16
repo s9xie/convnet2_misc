@@ -762,7 +762,7 @@ public:
  * Input 1: labels
  * Input 2: softmax outputs
  */
-class TaskLogregCostLayer : public CostLayer {
+class TaskLogregCostLayer : public LogregCostLayer {
 protected:
     NVMatrix _trueLabelLogProbs, _correctProbs, _topkProbs;
     std::map<int,NVMatrix*> _probsAccum; // input replica idx -> nvmatrix
@@ -775,7 +775,7 @@ protected:
     void bpropActs(NVMatrix& v, int replicaIdx, int inpIdx, float scaleTargets, PASS_TYPE passType);
 public:
     int getTaskId();
-    LogregCostLayer(ConvNetThread* convNetThread, PyObject* paramsDict, int replicaID);
+    TaskLogregCostLayer(ConvNetThread* convNetThread, PyObject* paramsDict, int replicaID);
     NVMatrix& getProbsAccum(int replicaIdx);
 };
 
