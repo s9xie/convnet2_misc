@@ -2208,6 +2208,107 @@ void DetectionCrossEntropyCostLayer::fpropActs(int inpIdx, float scaleTargets, P
 
 /*
  * =====================
+ * TaskLogregCostLayer
+ * =====================
+ */
+TaskLogregCostLayer::TaskLogregCostLayer(ConvNetThread* convNetThread, PyObject* paramsDict, int replicaID) : CostLayer(convNetThread, paramsDict, replicaID, false) {
+    _topk = pyDictGetInt(paramsDict, "topk");
+    _taskId = pyDictGetInt(paramsDict, "taskId");
+    assert(_taskId >= 0);
+//    _numAccumed = 0;
+}
+
+void TaskLogregCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType, int passIdx) {
+    // This layer uses its two inputs together
+    if (inpIdx == 0) {
+        NVMatrix& labels = *_inputs[0];
+        NVMatrix& tasks  = *_inputs[1];
+        NVMatrix* probs  =  _inputs[2];
+
+        _doCompute = !IS_MULTIVIEW_TEST(passType);
+        if (!_doCompute) {
+            if (IS_MULTIVIEW_TEST_START(passType)) {
+                if (_probsAccum.count(passIdx) == 0) {
+                    _probsAccum[passIdx] = new NVMatrix(*probs);
+                }
+                probs->copy(*_probsAccum[passIdx]);
+                _numAccumed[passIdx] = 1;
+            } else {
+                _probsAccum[passIdx]->add(*probs);
+                _numAccumed[passIdx] += 1;
+            }
+            if (IS_MULTIVIEW_TEST_END(passType)) {
+                probs = _probsAccum[passIdx];
+                probs->scale(1.0 / _numAccumed[passIdx]);
+                _doCompute = true;
+            }
+        }
+        if (_doCompute) {
+            int numCases = labels.getNumElements();
+            probs->max(0,_maxProbs);
+            if (_topk == 1) {
+                computeLogregCost(labels, *probs, _maxProbs, _trueLabelLogProbs, _correctProbs);
+            } else {
+                computeMultiSoftmaxCost(labels, *probs, _maxProbs, _trueLabelLogProbs, _correctProbs, _topkProbs, _topk);
+            }
+
+            //Task mask part
+            NVMatrix taskIndict;
+            tasks.equalToScalar(_taskId, taskIndict);
+            _correctProbs.eltwiseMult(taskIndict);
+            _trueLabelLogProbs.eltwiseMult(taskIndict);
+            _topkProbs.eltwiseMult(taskIndict);
+            int taskCases=taskIndict.sum();
+
+            _costv.clear();
+            if(taskCases != 0) {
+                double top1 = _correctProbs.sum(_tmpbuf);
+                _costv.push_back(-_trueLabelLogProbs.sum(_tmpbuf)*numCases/taskCases);
+                _costv.push_back((taskCases - top1)*numCases/taskCases);
+                _costv.push_back((taskCases - (_topk == 1 ? top1 : _topkProbs.sum(_tmpbuf)))*numCases/taskCases);
+            }
+        }
+    }
+}
+
+NVMatrix& TaskLogregCostLayer::getProbsAccum(int replicaIdx) {
+    return *_probsAccum[replicaIdx];
+}
+
+void TaskLogregCostLayer::bprop(PASS_TYPE passType) {
+   if (_coeff != 0) {
+        Layer::bprop(passType);
+    }
+}
+
+void TaskLogregCostLayer::bpropActs(NVMatrix& v, int replicaIdx, int inpIdx, float scaleTargets, PASS_TYPE passType) {
+    assert(inpIdx == 2);
+    if (inpIdx == 2) {
+        LayerV& prev = _prev[replicaIdx];
+        NVMatrix& labels = *_inputs[0];
+        NVMatrix& probs = *_inputs[2];
+        NVMatrix& target = prev[2]->getActsGrad();
+        // Numerical stability optimization: if the layer below me is a softmax layer, let it handle
+        // the entire gradient computation to avoid multiplying and dividing by a near-zero quantity.
+        bool doWork = prev[2]->getNext().size() > 1 || prev[2]->getType() != "softmax"
+                    || prev[2]->getDeviceID() != getDeviceID() || prev[2]->getNumReplicas() != getNumReplicas();
+        if (prev[2]->getType() == "softmax") {
+            static_cast<SoftmaxLayer*>(prev[2])->setDoUpperGrad(!doWork);
+        }
+        if (doWork) {
+            computeLogregGrad(labels, probs, target, scaleTargets == 1, _coeff);
+            NVMatrix& tasks = prev[1]->getActs();
+            NVMatrix taskIndict;
+            tasks.equalToScalar(_taskId, taskIndict);
+            taskIndict.transpose(_trans);      
+            target.eltwiseMultByVector(taskIndict);
+        }
+    }
+}
+
+
+/*
+ * =====================
  * LogregCostLayer
  * =====================
  */
