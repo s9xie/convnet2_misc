@@ -581,6 +581,10 @@ int Layer::getNumLayersPrev() {
     return _prev.size() > 0 ? _prev[0].size() : 0;
 }
 
+int Layer::getTaskId(){
+    return -1;
+}
+
 void Layer::setMemorySourceActs(int deviceID, MemoryView& mem) {
     assert(_memSrcActs[deviceID]->isParent());
     delete _memSrcActs[deviceID];
@@ -1202,9 +1206,25 @@ void SoftmaxLayer::bpropActs(NVMatrix& v, int replicaIdx, int inpIdx, float scal
         for (int i = 0; i < _next.size(); ++i) {
             if (_next[i]->isGradProducer(getName())) {
                 NVMatrix& labels = _next[i]->getPrev()[replicaIdx][0]->getActs(getDeviceID()); // Get cost's labels
+                NVMatrix target;
                 float gradCoeff = dynamic_cast<CostLayer*>(_next[i])->getCoeff();
 
-                computeLogregSoftmaxGrad(labels, getActs(), prev[0]->getActsGrad(), scaleTargets == 1, gradCoeff);
+                //computeLogregSoftmaxGrad(labels, getActs(), prev[0]->getActsGrad(), scaleTargets == 1, gradCoeff);
+                computeLogregSoftmaxGrad(labels, getActs(), target, 0, gradCoeff);
+		if(_next[0]->getType()=="cost.tasklogreg") {
+			//std::cout << "next[0]->getType == cost.tasklogreg" << std::endl;
+			NVMatrix& tasks = _next[0]->getPrev()[replicaIdx][1]->getActs(getDeviceID());
+			//std::cout << "tasks matrix in softmax: " << std::endl;
+			//tasks.print(0, tasks.getNumRows(), 0, tasks.getNumCols());
+		 	int taskId = _next[0]->getTaskId();
+			//std::cout << "taskId : " << taskId << std::endl;
+		        assert(taskId >= 0);
+			NVMatrix taskIndict;
+			tasks.equalToScalar(taskId, taskIndict);
+			taskIndict.transpose(_trans);
+			target.eltwiseMultByVector(taskIndict);
+		}
+		prev[0]->getActsGrad().add(target, scaleTargets==1, 1);
                 break;
             }
         }
@@ -2048,6 +2068,8 @@ CostLayer& CostLayer::make(ConvNetThread* convNetThread, PyObject* paramsDict, s
         return *new DetectionCrossEntropyCostLayer(convNetThread, paramsDict, replicaID);
     } else if (type == "cost.logreg") {
         return *new LogregCostLayer(convNetThread, paramsDict, replicaID);
+    } else if (type == "cost.tasklogreg") {
+        return *new TaskLogregCostLayer(convNetThread, paramsDict, replicaID);
     } else if (type == "cost.sum2") {
         return *new SumOfSquaresCostLayer(convNetThread, paramsDict, replicaID);
     }
@@ -2254,21 +2276,52 @@ void TaskLogregCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE pa
 
             //Task mask part
             NVMatrix taskIndict;
+	    
+            //std::cout << "taskId in TaskLogreg: " << _taskId << std::endl;
             tasks.equalToScalar(_taskId, taskIndict);
-            _correctProbs.eltwiseMult(taskIndict);
-            _trueLabelLogProbs.eltwiseMult(taskIndict);
-            _topkProbs.eltwiseMult(taskIndict);
-            int taskCases=taskIndict.sum();
+	    
+	    //std::cout << "tasks row " << tasks.getNumRows() << "task cols " << tasks.getNumCols() << std::endl;
+	    //std::cout << "taskIndict row " << taskIndict.getNumRows() << "taskIndcit cols " << taskIndict.getNumCols() << std::endl;
+	    //std::cout << "correctProbs row " << _correctProbs.getNumRows() << "_correctProbs cols " << _correctProbs.getNumCols() << std::endl;
+	    //std::cout << "trueProbs row " << _trueLabelLogProbs.getNumRows() << "_correctProbs cols " << _trueLabelLogProbs.getNumCols() << std::endl;
+	    //std::cout << "topkprobsProbs row " << _topkProbs.getNumRows() << "_correctProbs cols " << _topkProbs.getNumCols() << std::endl;
+	    
+	    //std::cout << "taskIndict:" << std::endl;
+            //taskIndict.print(0,taskIndict.getNumRows(),0,taskIndict.getNumCols());
 
+	    //std::cout << "_correctProbs before:" << std::endl; 
+	    //_correctProbs.print(0,_correctProbs.getNumRows(),0,_correctProbs.getNumCols());
+	    _correctProbs.eltwiseMult(taskIndict);
+	    _correctProbs.eltwiseMult(taskIndict);
+	    //std::cout << "_correctProbs after:" << std::endl;
+	    //_correctProbs.print(0,_correctProbs.getNumRows(),0,_correctProbs.getNumCols());
+
+            //std::cout << "_trueLabelLogProbs before:" << std::endl; 
+	    //_trueLabelLogProbs.print(0,_trueLabelLogProbs.getNumRows(),0,_trueLabelLogProbs.getNumCols());
+	    _trueLabelLogProbs.eltwiseMult(taskIndict);
+	    _trueLabelLogProbs.eltwiseMult(taskIndict);
+            //std::cout << "_trueLabelLogProbs after:" << std::endl; 
+	    //_trueLabelLogProbs.print(0,_trueLabelLogProbs.getNumRows(),0,_trueLabelLogProbs.getNumCols());
+	    
+	    if (_topk > 1) {
+            	_topkProbs.eltwiseMult(taskIndict);
+	    }
+            int taskCases=taskIndict.sum();
             _costv.clear();
             if(taskCases != 0) {
                 double top1 = _correctProbs.sum(_tmpbuf);
+		//std::cout << "top1: " << std::endl;
+		//std::cout << top1 << std::endl;
                 _costv.push_back(-_trueLabelLogProbs.sum(_tmpbuf)*numCases/taskCases);
                 _costv.push_back((taskCases - top1)*numCases/taskCases);
                 _costv.push_back((taskCases - (_topk == 1 ? top1 : _topkProbs.sum(_tmpbuf)))*numCases/taskCases);
             }
         }
     }
+}
+
+int TaskLogregCostLayer::getTaskId(){
+    return _taskId;
 }
 
 NVMatrix& TaskLogregCostLayer::getProbsAccum(int replicaIdx) {

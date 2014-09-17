@@ -1432,13 +1432,13 @@ class LogregCostParser(CostParser):
     
 class TaskLogregCostParser(CostParser):
     def __init__(self):
-        CostParser.__init__(self, num_inputs=2)
+        CostParser.__init__(self, num_inputs=3)
         
     def add_params(self, mcp):
         CostParser.add_params(self, mcp)
         dic, name = self.dic, self.dic['name']
         dic['topk'] = mcp.safe_get_int(name, 'topk', default=1)
-        if dic['topk'] > dic['numInputs'][1]:
+        if dic['topk'] > dic['numInputs'][2]:
             raise LayerParsingError("Layer '%s': parameter 'topk'must not have value greater than the number of classess."  % (name))
 
 
@@ -1455,7 +1455,7 @@ class TaskLogregCostParser(CostParser):
             raise LayerParsingError("Layer '%s': second input must be softmax layer" % name)
         if dic['numInputs'][2] != model.train_data_provider.get_num_classes(dic['taskName']):
             raise LayerParsingError("Layer '%s': softmax input '%s' must produce %d outputs, because that is the number of classes of task '%s' in the dataset" \
-                                    % (name, dic['inputs'][1], model.train_data_provider.get_num_classes(dic['taskName']),dic['taskName']))
+                                    % (name, dic['inputs'][2], model.train_data_provider.get_num_classes(dic['taskName']),dic['taskName']))
             
         print "Initialized task logistic regression cost '%s' on GPUs %s" % (name, dic['gpus'])
         return dic

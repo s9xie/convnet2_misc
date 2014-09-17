@@ -194,7 +194,10 @@ class ConvNet(IGPUModel):
     def print_costs(self, cost_outputs):
         costs, num_cases = cost_outputs[0], cost_outputs[1]
         children = set()
+        #print "costs", costs
+	#print "num_cases", num_cases
         for errname in costs:
+	    #print "errname ", errname
             if sum(errname in self.layers[z]['children'] for z in costs) == 0:
 #                print self.layers[errname]['children']
                 for child in set(self.layers[errname]['children']) & set(costs.keys()):
@@ -207,9 +210,10 @@ class ConvNet(IGPUModel):
                     print ", ".join("%.6f" % v for v in filtered_costs),
                 else:
                     print eval(self.layers[errname]['outputFilterFormatter'])(self,filtered_costs),
-                if m.isnan(filtered_costs[0]) or m.isinf(filtered_costs[0]):
-                    print "<- error nan or inf!"
-                    sys.exit(1)
+		if len(filtered_costs) != 0:
+                	if m.isnan(filtered_costs[0]) or m.isinf(filtered_costs[0]):
+                    		print "<- error nan or inf!"
+                    		sys.exit(1)
         for c in children:
             del costs[c]
         

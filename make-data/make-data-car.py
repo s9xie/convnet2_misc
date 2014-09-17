@@ -72,6 +72,7 @@ def write_batches(target_dir, name, start_batch_num, labels, tasks, jpeg_files):
     tasks = partition_list(tasks, OUTPUT_BATCH_SIZE)
     makedir(target_dir)
     print "Writing %s batches..." % name
+    
     for i,(labels_batch, tasks_batch, jpeg_file_batch) in enumerate(zip(labels, tasks, jpeg_files)):
         t = time()
         jpeg_strings = list(itertools.chain.from_iterable(resizeJPEG([jpeg.read() for jpeg in jpeg_file_batch], OUTPUT_IMAGE_SIZE, NUM_WORKER_THREADS, CROP_TO_SQUARE)))
@@ -89,6 +90,11 @@ def write_batches(target_dir, name, start_batch_num, labels, tasks, jpeg_files):
 
 def generate_labels(is_cotr, class_dict_fn):
     task_label_names = dict()
+    task_label_names['car'] = list()
+    task_label_names['view'] = list()
+
+    labels_dic = dict()    
+
     for line in open(class_dict_fn, 'r'):
         line = line.strip('\n')
         line = line.split()
@@ -124,20 +130,19 @@ if __name__ == "__main__":
     print "OUTPUT_IMAGE_SIZE: %s" % OUTPUT_IMAGE_SIZE
     print "NUM_WORKER_THREADS: %s" % NUM_WORKER_THREADS
 
-    TRAIN_TAR = os.path.join(args.src_dir, 'Training.tar')
-    VALIDATION_TAR = os.path.join(args.src_dir, 'Testing.tar')
+    TRAIN_TAR = os.path.join(args.src_dir, 'car_view_train.tar')
+    VALIDATION_TAR = os.path.join(args.src_dir, 'car_test.tar')
     CLASS_DICT_FN = os.path.join(args.src_dir, 'car_view_cls_label.txt')
     TASK_DICT_FN =  os.path.join(args.src_dir, 'car_view_task_label.txt')
 
     assert OUTPUT_BATCH_SIZE % OUTPUT_SUB_BATCH_SIZE == 0
     labels_dic, task_label_names = generate_labels(True, CLASS_DICT_FN)
     task_dic = generate_task(True, TASK_DICT_FN)
-    #labels_dic, label_names, validation_labels = parse_devkit_meta(ILSVRC_DEVKIT_TAR)
 
     with open_tar(TRAIN_TAR, 'training tar') as tf:
         member = tf.getmembers()
-	    members = [member[m] for m in range(len(member)) if member[m].isdir() == False]
-	
+        members = [member[m] for m in range(len(member)) if member[m].isdir() == False]
+        
         train_jpeg_files = []
         for i in range(len(members)):
             if i % 100 == 0:
@@ -167,13 +172,13 @@ if __name__ == "__main__":
                 sys.stdout.flush()
             validation_jpeg_files += [tf.extractfile(members[i])]
 
-	validation_labels = [[labels_dic[jpeg.name.split('/')[1]]] for jpeg in validation_jpeg_files]
-    tasks        = [[task_dic[jpeg.name.split('/')[0].split('_')[0]]] for jpeg in validation_jpeg_files]
+    	validation_labels = [[labels_dic[jpeg.name.split('/')[1]]] for jpeg in validation_jpeg_files]
+    	tasks = [[task_dic[jpeg.name.split('/')[0].split('_')[0]]] for jpeg in validation_jpeg_files]
 
-        write_batches(args.tgt_dir, 'validation', val_batch_start, validation_labels,, tasks, validation_jpeg_files)
+    	write_batches(args.tgt_dir, 'validation', val_batch_start, validation_labels, tasks, validation_jpeg_files)
     
     # Write meta file
-    meta = unpickle('input_meta')
+    meta = unpickle('input_meta_car')
     meta_file = os.path.join(args.tgt_dir, 'batches.meta')
 
     meta['task_label_names'] = task_label_names

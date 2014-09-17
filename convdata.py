@@ -45,23 +45,23 @@ class JPEGBatchLoaderThread(Thread):
         tasks = list(it.chain.from_iterable(rd['tasks'] for rd in rawdics))
 
         img_mat = n.empty((nc_total * dp.data_mult, dp.inner_pixels * dp.num_colors), dtype=n.float32)
-        lab_mat = n.zeros((nc_total, dp.get_num_classes()), dtype=n.float32)
-        task_mat = n.zeros((nc_total, dp.get_num_classes()), dtype=n.float32)
+        #lab_mat = n.zeros((nc_total, dp.get_num_classes()), dtype=n.float32)
+        #task_mat = n.zeros((nc_total, dp.get_num_classes()), dtype=n.float32)
         dp.convnet.libmodel.decodeJpeg(jpeg_strs, img_mat, dp.img_size, dp.inner_size, dp.test, dp.multiview)
         lab_vec = n.tile(n.asarray([(l[nr.randint(len(l))] if len(l) > 0 else -1) + label_offset for l in labels], dtype=n.single).reshape((nc_total, 1)), (dp.data_mult,1))
         task_vec = n.tile(n.asarray([(l[nr.randint(len(l))] if len(l) > 0 else -1) for l in tasks], dtype=n.single).reshape((nc_total, 1)), (dp.data_mult,1))
         #saining
-        for c in xrange(nc_total):
-            lab_mat[c, [z + label_offset for z in labels[c]]] = 1
-            task_mat[c, [z for z in tasks[c]]] = 1
-        lab_mat = n.tile(lab_mat, (dp.data_mult, 1))
+        #for c in xrange(nc_total):
+        #    lab_mat[c, [z + label_offset for z in labels[c]]] = 1
+        #    task_mat[c, [z for z in tasks[c]]] = 1
+        #lab_mat = n.tile(lab_mat, (dp.data_mult, 1))
         
 
         return {'data': img_mat[:nc_total * dp.data_mult,:],
                 'labvec': lab_vec[:nc_total * dp.data_mult,:],
-                'labmat': lab_mat[:nc_total * dp.data_mult,:],
-                'taskvec': task_vec[:nc_total * dp.data_mult,:],
-                'taskmat': task_mat[:nc_total * dp.data_mult,:]}
+                #'labmat': lab_mat[:nc_total * dp.data_mult,:],
+                'taskvec': task_vec[:nc_total * dp.data_mult,:]}
+                #'taskmat': task_mat[:nc_total * dp.data_mult,:]}
     
     def run(self):
         rawdics = self.dp.get_batch(self.batch_num)
@@ -202,8 +202,8 @@ class ImageDataProvider(LabeledDataProvider):
             self.add_color_noise()
         self.batches_generated += 1
         
-        return epoch, batchnum, [self.data[self.d_idx]['data'].T, self.data[self.d_idx]['labvec'].T, self.data[self.d_idx]['labmat'].T, self.data[self.d_idx]['taskvec'].T, self.data[self.d_idx]['taskmat'].T]
         
+        return epoch, batchnum, [self.data[self.d_idx]['data'].T, self.data[self.d_idx]['labvec'].T]
         
     # Takes as input an array returned by get_next_batch
     # Returns a (numCases, imgSize, imgSize, 3) array which can be
@@ -313,8 +313,11 @@ class TasksCotrDataProvider(LabeledDataProvider):
         if self.scalar_mean >= 0:
             self.data_mean_crop = self.scalar_mean
     
-    def get_num_classes(self, task):
-        return len(self.batch_meta['task_label_names'][task])
+    def get_num_classes(self, task=-1):
+	if task != -1:
+           return len(self.batch_meta['task_label_names'][task]) 
+        
+        return -1
 
     def showimg(self, img):
         from matplotlib import pylab as pl
@@ -328,7 +331,8 @@ class TasksCotrDataProvider(LabeledDataProvider):
         if idx == 0:
             return self.inner_size**2 * 3
         if idx == 2:
-            return self.get_num_classes()
+            return 1
+	    #return self.get_num_classes() Why????????
         return 1
 
     def start_loader(self, batch_idx):
@@ -405,7 +409,7 @@ class TasksCotrDataProvider(LabeledDataProvider):
             self.add_color_noise()
         self.batches_generated += 1
         
-        return epoch, batchnum, [self.data[self.d_idx]['data'].T, self.data[self.d_idx]['labvec'].T, self.data[self.d_idx]['labmat'].T]
+        return epoch, batchnum, [self.data[self.d_idx]['data'].T, self.data[self.d_idx]['labvec'].T, self.data[self.d_idx]['taskvec'].T]
         
         
     # Takes as input an array returned by get_next_batch

@@ -24,6 +24,7 @@
 #include <curand.h>
 #include <time.h>
 #include <curand_kernel.h>
+#include <iostream>
 
 #include <helper_cuda.h>
 #include "../../util/include/matrix.h"
@@ -183,7 +184,9 @@ public:
     }
 
     bool isSameDims(const NVMatrix& m) const {
-        return m.getNumRows() == _numRows && m.getNumCols() == _numCols;
+	//std::cout << "isSameDims row: " << m.getNumRows() << " vs. " << _numRows << std::endl;
+        //std::cout << "isSameDims col: " <<m.getNumCols() << " vs. " << _numCols << std::endl;
+	return m.getNumRows() == _numRows && m.getNumCols() == _numCols;
     }
 
     int getNumRows() const {

@@ -493,16 +493,20 @@ void computeLogregCost(NVMatrix& labels, NVMatrix& probs, NVMatrix& maxProbs, NV
     assert(labels.isContiguous());
     assert(probs.isContiguous());
 
+    NVMatrix& maxProbs2 = probs.max(0);    
+    
     labelLogProbs_out.resize(1, numCases);
     correctProbs_out.resize(1, numCases);
     dim3 threads(LOGREG_ERR_THREADS_X, 1);
     dim3 blocks(DIVUP(numCases, LOGREG_ERR_THREADS_X), 1);
     cudaStream_t stream = NVMatrix::getDefaultStream();
     cudaFuncSetCacheConfig(kLogregCost, cudaFuncCachePreferL1);
-    kLogregCost<<<blocks, threads, 0, stream>>>(probs.getDevData(), labels.getDevData(), maxProbs.getDevData(),
+    kLogregCost<<<blocks, threads, 0, stream>>>(probs.getDevData(), labels.getDevData(), maxProbs2.getDevData(),
                                      labelLogProbs_out.getDevData(), correctProbs_out.getDevData(),
                                      numCases, numOut);
     getLastCudaError("computeLogregCost: Kernel execution failed");
+    
+    delete &maxProbs2;
 }
 
 void computeLogregGrad(NVMatrix& labels, NVMatrix& probs, NVMatrix& target, bool add, float coeff) {

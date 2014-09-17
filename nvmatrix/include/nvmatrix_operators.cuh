@@ -287,7 +287,10 @@ public:
     class Multiply : public BinaryOp {
     public:
         __device__ inline float operator()(const float a, const float b) const {
-            return a * b;
+             if(isnan(a) || isnan(b)) 
+		return 0;
+	     else 
+		return a * b;
         }
     };
 
