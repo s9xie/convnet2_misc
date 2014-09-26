@@ -309,6 +309,21 @@ public:
     SplitFCLayer(ConvNetThread* convNetThread, PyObject* paramsDict, int replicaID, bool useGrad);
 };
 
+class AggSoftmaxLayer : public Layer {
+protected:
+    bool _doUpperGrad;
+    Matrix* _hAgg;
+    NVMatrix _Agg; 
+    NVMatrix _Pl; 
+    NVMatrix _max, _sum;
+    void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType, int passIdx);
+    void bpropActs(NVMatrix& v, int replicaIdx, int inpIdx, float scaleTargets, PASS_TYPE passType);
+public:
+    void copyToGPU();
+    AggSoftmaxLayer(ConvNetThread* convNetThread, PyObject* paramsDict, int replicaID);
+    void setDoUpperGrad(bool b);
+};
+
 class SoftmaxLayer : public Layer {
 protected:
     bool _doUpperGrad;

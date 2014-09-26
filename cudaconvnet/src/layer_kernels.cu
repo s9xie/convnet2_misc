@@ -301,6 +301,32 @@ __global__ void kLogregSoftmaxGrad(float* y_l, float* labels, float* dE_dx_l, co
 }
 
 /*
+ * E = -log(y'_t)
+ * y_l:     (numOut, numCases)
+ * labels:  (1, numCases)
+ * aggsum: (numOut_agg, numCases)
+ * 
+ * dE_dx_l: (numOut, numCases)
+ */
+template <bool add>
+__global__ void kLogregAggSoftmaxGrad(float* y_l, float* aggsum, float* labels, float* dE_dx_l, const int numCases,
+                                 const int numOut, const float gradCoeff) {
+    const int tx = blockIdx.x * LOGREG_GRAD_THREADS_X + threadIdx.x;
+    const int ty = blockIdx.y * LOGREG_GRAD_THREADS_Y + threadIdx.y;
+    const int tidx = ty * numCases + tx;
+    
+    if (ty < numOut && tx < numCases) {
+        const int label = int(labels[tx]);
+        float v = gradCoeff * ( y_l[tidx]/float(aggsum[label]) - y_l[tidx] );
+        if (add) {
+            dE_dx_l[tidx] += v;
+        } else {
+            dE_dx_l[tidx] = v;
+        }
+    }
+}
+
+/*
  * dE_dy_l: (numOut, numCases)
  * y_l:     (numOut, numCases)
  * 
@@ -552,6 +578,31 @@ void computeLogregSoftmaxGrad(NVMatrix& labels, NVMatrix& probs, NVMatrix& targe
                                                      numCases, numOut, coeff);
     } else {
         kLogregSoftmaxGrad<true><<<blocks, threads, 0, stream>>>(probs.getDevData(), labels.getDevData(), target.getDevData(),
+                                                     numCases, numOut, coeff);
+    }
+
+    getLastCudaError("computeLogregSoftmaxGrad: Kernel execution failed");
+}
+
+void computeLogregAggSoftmaxGrad(NVMatrix& labels, NVMatrix& probs, NVMatrix& aggsum, NVMatrix& target, bool add, float coeff) {
+    int numCases = probs.getLeadingDim(); 
+    int numOut = probs.getFollowingDim(); 
+    assert(labels.getNumElements() == numCases);
+    assert(probs.isContiguous());
+    assert(aggsum.isContiguous());
+    assert(target.isContiguous());
+    assert(labels.isContiguous());
+    assert(probs.isTrans());
+    
+    dim3 threads(LOGREG_GRAD_THREADS_X, LOGREG_GRAD_THREADS_Y);
+    dim3 blocks(DIVUP(numCases, LOGREG_GRAD_THREADS_X), DIVUP(numOut, LOGREG_GRAD_THREADS_Y));
+    cudaStream_t stream = NVMatrix::getDefaultStream();
+    if (!add) {
+        target.resize(probs);
+        kLogregAggSoftmaxGrad<false><<<blocks, threads, 0, stream>>>(probs.getDevData(), aggsum.getDevData(), labels.getDevData(), target.getDevData(),
+                                                     numCases, numOut, coeff);
+    } else {
+        kLogregAggSoftmaxGrad<true><<<blocks, threads, 0, stream>>>(probs.getDevData(), aggsum.getDevData(), labels.getDevData(), target.getDevData(),
                                                      numCases, numOut, coeff);
     }
 

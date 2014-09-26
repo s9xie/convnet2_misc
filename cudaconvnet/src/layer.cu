@@ -1180,6 +1180,199 @@ void LocalUnsharedLayer::_constrainWeights() {
     }
 }
 
+
+/* 
+ * =======================
+ * AggSoftmaxLayer
+ * =======================
+ */
+
+ AggSoftmaxLayer::AggSoftmaxLayer(ConvNetThread* convNetThread, PyObject* paramsDict, int replicaID)
+    : Layer(convNetThread, paramsDict, replicaID, true), _doUpperGrad(false) {
+        _hAgg = pyDictGetMatrix(paramsDict, "agg");
+    }
+void AggSoftmaxLayer::copyToGPU(){
+    _Agg.copyFromHost(*_hAgg, true);
+}
+
+void AggSoftmaxLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType, int passIdx) {
+    //BP designed for averaging multiple predictions
+    //not suitable for selection
+    NVMatrix& input = *_inputs[0];
+    NVMatrix AggInput;
+
+    //
+    //AggInput.max(1, _max);
+    //input.addVector(_max, -1, getActs());
+    //getActs().apply(NVMatrixOps::Exp());
+    //getActs().sum(1, _sum);
+    //getActs().eltwiseDivideByVector(_sum);
+
+    input.max(1, _max);
+    input.addVector(_max, -1, getActs());
+    getActs().apply(NVMatrixOps::Exp());
+    getActs().sum(1, _sum);
+    getActs().eltwiseDivideByVector(_sum);
+
+    _Pl = getActs();
+    NVMatrix destsum;
+    getActs().rightMult(_Agg, 1, destsum);
+    destsum.copy(getActs());
+
+
+}
+void AggSoftmaxLayer::bpropActs(NVMatrix& v, int replicaIdx, int inpIdx, float scaleTargets, PASS_TYPE passType) {
+    assert(inpIdx == 0);
+    LayerV& prev = _prev[replicaIdx];
+    if (_doUpperGrad) {
+        for (int i = 0; i < _next.size(); ++i) {
+            if (_next[i]->isGradProducer(getName())) {
+                NVMatrix& labels = _next[i]->getPrev()[replicaIdx][0]->getActs(getDeviceID()); // Get cost's labels
+                NVMatrix target;
+                float gradCoeff = dynamic_cast<CostLayer*>(_next[i])->getCoeff();
+
+                //computeLogregSoftmaxGrad(labels, getActs(), prev[0]->getActsGrad(), scaleTargets == 1, gradCoeff);
+                computeLogregAggSoftmaxGrad(labels, _Pl, getActs(), target, 0, gradCoeff);
+                
+        if(_next[0]->getType()=="cost.tasklogreg") {
+            //std::cout << "next[0]->getType == cost.tasklogreg" << std::endl;
+            NVMatrix& tasks = _next[0]->getPrev()[replicaIdx][1]->getActs(getDeviceID());
+            //std::cout << "tasks matrix in softmax: " << std::endl;
+            //tasks.print(0, tasks.getNumRows(), 0, tasks.getNumCols());
+            int taskId = _next[0]->getTaskId();
+            //std::cout << "taskId : " << taskId << std::endl;
+            assert(taskId >= 0);
+            NVMatrix taskIndict;
+            tasks.equalToScalar(taskId, taskIndict);
+            taskIndict.transpose(_trans);
+            target.eltwiseMultByVector(taskIndict);
+        }
+        prev[0]->getActsGrad().add(target, scaleTargets==1, 1);
+                break;
+            }
+        }
+
+    }
+    else {
+        //computeSoftmaxGrad(getActs(), v, prev[0]->getActsGrad(), scaleTargets, 1);
+        std::cout << "Why this aggsoftmaxlayers should be here?" << std::endl;
+        int quit = 1;
+        assert(quit == 0);
+    }
+}
+
+/* 
+ * =======================
+ * AggCoarseFineSoftmaxLayer
+ * =======================
+ */
+AggCoarseFineSoftmaxLayer::AggCoarseFineSoftmaxLayer(ConvNetThread* convNetThread, PyObject* paramsDict, int replicaID) : Layer(convNet, paramsDict, true) {
+  _hCtFAgg = pyDictGetMatrix(paramsDict, "agg");
+  _htype = pyDictGetString(paramsDict, "htype");
+  _hAvgAgg = pyDictGetMatrix(paramsDict, "avgagg");
+}
+
+void AggCoarseFineSoftmaxLayer::copyToGPU(){
+  _CtFAgg.copyFromHost(*_hCtFAgg, true);
+  _AvgAgg.copyFromHost(*_hAvgAgg, true);
+}
+
+// Does this layer produce gradient for layers below?
+bool AggCoarseFineSoftmaxLayer::isGradProducer() {
+    return false;
+}
+
+void AggCoarseFineSoftmaxLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType, int passIdx) {
+ // take two outputs from two previous layers, 0 -> coarse predictions, 1-> fine predictions 
+  if(inpIdx==0){
+    NVMatrix& cPreds = *_inputs[0]; // 128*20
+    NVMatrix& fPreds = *_inputs[1]; // 128*100
+    //std::cout << "getActs size= " << getActs().getNumRows() << "," << getActs().getNumCols() << std::endl;  
+    //std::cout << "cPreds size= " << cPreds.getNumRows() << "," << cPreds.getNumCols() << std::endl;  
+    //std::cout << "fPreds size= " << fPreds.getNumRows() << "," << fPreds.getNumCols() << std::endl;  
+    
+   if(_htype=="hard"){ //input are predictions
+     NVMatrix& cmax = cPreds.max(1);
+     NVMatrix cPredsBin; 
+     cPreds.biggerEqualToVector(cmax, cPredsBin); //binarilize the maximum entry in prediction matrix 
+
+     NVMatrix fPredsMask;
+     cPredsBin.rightMult(_CtFAgg, 1, fPredsMask); //binary mask for fine labels probabiltiy computation 
+    
+     fPredsMask.eltwiseMult(fPreds);
+
+     NVMatrix& max = fPredsMask.max(1);
+     fPredsMask.addVector(max, -1, getActs());
+     getActs().apply(NVMatrixOps::Exp());
+     NVMatrix& sum = getActs().sum(1);
+     getActs().eltwiseDivideByVector(sum);
+     delete &cmax; 
+     delete &max;
+     delete &sum;
+   } else if (_htype=="soft"){// input are also predictions 
+     NVMatrix& fmax = fPreds.max(1);
+     fPreds.addVector(fmax, -1, getActs());
+     getActs().apply(NVMatrixOps::Exp());
+     
+     NVMatrix catsum, flatsum;
+     //std::cout << "getActs size= " << getActs().getNumRows() << "," << getActs().getNumCols() << std::endl;  
+     //std::cout << "CtFAgg Size= " << _CtFAgg.getNumRows() << "," << _CtFAgg.getNumCols() << std::endl;  
+     //std::cout << "CtFAgg transpose Size= " << _CtFAgg.getTranspose().getNumRows() << "," << _CtFAgg.getTranspose().getNumCols() << std::endl;  
+     getActs().rightMult(_CtFAgg.getTranspose(), 1, catsum); //category sum 128*20
+     catsum.rightMult(_CtFAgg, 1, flatsum); // 128*100
+     getActs().eltwiseDivide(flatsum);//getActs_{ij} = Pr(j|i, c), \sum_{j\in c}\Pr(j|i, c)=1
+
+     NVMatrix& cmax = cPreds.max(1);
+     cPreds.addVector(cmax, -1, catsum);
+     catsum.apply(NVMatrixOps::Exp());
+     NVMatrix& csum = catsum.sum(1);
+     catsum.eltwiseDivideByVector(csum); //catsum_{ic}=Pr(c|i)
+     catsum.rightMult(_CtFAgg, 1, flatsum); // 128*100 
+     getActs().eltwiseMult(flatsum); // getActs_ij = \Pr(j|i, c)\Pr(c|i) , j\in c
+     
+     //std::cout << "getActs size= " << getActs().getNumRows() << "," << getActs().getNumCols() << std::endl;  
+     //std::cout << "avgAgg Size= " << _AvgAgg.getNumRows() << "," << getActs().getNumCols() << std::endl;  
+     
+     NVMatrix destsum;
+     getActs().rightMult(_AvgAgg.getTranspose(), 1, destsum); //getActs grouped sum together
+     //std::cout << "destsum Size= " << destsum.getNumRows() << "," << destsum.getNumCols() << std::endl;  
+     
+     //std::cout << "getActs before size= " << getActs().getNumRows() << "," << getActs().getNumCols() << std::endl;  
+     destsum.copy(getActs());
+     //std::cout << "getActs after size= " << getActs().getNumRows() << "," << getActs().getNumCols() << std::endl;  
+     
+
+     //NVMatrix& sum = getActs().sum(1); 
+     //float max = sum.max();
+     //float min = sum.min();
+     //assert(abs(max-1)<0.001);
+     //assert(abs(min-1)<0.001);
+     //delete &sum;
+     
+     delete &csum;
+     delete &cmax;
+     delete &fmax;
+   }
+    //hacked by Saining
+    //hacked by TB
+    /*Matrix inputmat;
+    AggInput.copyToHost(inputmat, true);
+    std::cout<<"input to softmax "<<_name<<std::endl;
+    inputmat.print(); */
+   
+    /*std::cout<<"output of softmax "<<_name<<std::endl;
+    Matrix outputmat;
+    getActs().copyToHost(outputmat, true);
+    outputmat.print();*/
+       
+
+    //std::cout<<"layer="<<_name<<", fprob done: from input size ("<<(*_inputs[0]).getNumRows()<<","<<(*_inputs[0]).getNumCols()
+    //         <<") producing output size ("<<getActs().getNumRows()<<","<<getActs().getNumCols()<<")"<<std::endl;
+  }
+}
+
+
+
 /* 
  * =======================
  * SoftmaxLayer
@@ -2343,9 +2536,9 @@ void TaskLogregCostLayer::bpropActs(NVMatrix& v, int replicaIdx, int inpIdx, flo
         NVMatrix& target = prev[2]->getActsGrad();
         // Numerical stability optimization: if the layer below me is a softmax layer, let it handle
         // the entire gradient computation to avoid multiplying and dividing by a near-zero quantity.
-        bool doWork = prev[2]->getNext().size() > 1 || prev[2]->getType() != "softmax"
+        bool doWork = prev[2]->getNext().size() > 1 || ( prev[2]->getType() != "softmax" && prev[2]->getType() != "aggsoftmax" && prev[2]->getType() != "aggcoarsefinesoftmax") 
                     || prev[2]->getDeviceID() != getDeviceID() || prev[2]->getNumReplicas() != getNumReplicas();
-        if (prev[2]->getType() == "softmax") {
+        if (prev[2]->getType() == "softmax" || prev[2]->getType() == "aggsoftmax" || prev[2]->getType() == "aggcoarsefinesoftmax") {
             static_cast<SoftmaxLayer*>(prev[2])->setDoUpperGrad(!doWork);
         }
         if (doWork) {
@@ -2425,9 +2618,9 @@ void LogregCostLayer::bpropActs(NVMatrix& v, int replicaIdx, int inpIdx, float s
         NVMatrix& target = prev[1]->getActsGrad();
         // Numerical stability optimization: if the layer below me is a softmax layer, let it handle
         // the entire gradient computation to avoid multiplying and dividing by a near-zero quantity.
-        bool doWork = prev[1]->getNext().size() > 1 || prev[1]->getType() != "softmax"
+        bool doWork = prev[1]->getNext().size() > 1 || ( prev[1]->getType() != "softmax" && prev[1]->getType() != "aggsoftmax" && prev[1]->getType() != "aggcoarsefinesoftmax") 
                     || prev[1]->getDeviceID() != getDeviceID() || prev[1]->getNumReplicas() != getNumReplicas();
-        if (prev[1]->getType() == "softmax") {
+        if (prev[1]->getType() == "softmax" || prev[1]->getType() == "aggsoftmax" || prev[1]->getType() == "aggcoarsefinesoftmax") {
             static_cast<SoftmaxLayer*>(prev[1])->setDoUpperGrad(!doWork);
         }
         if (doWork) {
@@ -2452,5 +2645,111 @@ void SumOfSquaresCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE 
 
 void SumOfSquaresCostLayer::bpropActs(NVMatrix& v, int replicaIdx, int inpIdx, float scaleTargets, PASS_TYPE passType) {
     _prev[replicaIdx][inpIdx]->getActsGrad().add(*_inputs[0], scaleTargets, -2 * _coeff);
+}
+
+
+/* 
+ * =======================================================
+ * WeightCostLayer, input weights from two previous layers (theta = weights[0], beta = weights[1], M = regTemp)
+ * =======================================================
+ */
+WeightCostLayer::WeightCostLayer(ConvNetThread* convNetThread, PyObject* paramsDict, int replicaID) : CostLayer(convNetThread, paramsDict, replicaID, false) {
+    // Source layers for shared weights
+    intv& weightSourceLayerIndices = *pyDictGetIntV(paramsDict, "weightSourceLayerIndices");
+    // Weight matrix indices (inside the above source layers) for shared weights
+    intv& weightSourceMatrixIndices = *pyDictGetIntV(paramsDict, "weightSourceMatrixIndices");
+    //std::cout<<"layer= "<<_name<<"weights nums = "<<weightSourceLayerIndices.size()<<std::endl;
+    //floatv& epsW = *pyDictGetFloatV(paramsDict, "epsW");
+    PyObject* pyEpsW = PyList_GetItem(pyEpsWList, i);
+    ParameterSchedule& lrs = ParameterSchedule::make(pyEpsW); // Learning rate schedule
+
+    for (int i = 0; i < weightSourceLayers.size(); i++) {
+        std::string& srcLayerName = weightSourceLayers[i];
+
+        int matrixIdx = weightSourceMatrixIndices[i];
+        
+        WeightLayer& srcLayer = *static_cast<WeightLayer*>(&convNetThread->getLayer(srcLayerName));        
+        
+        Weights* srcWeights = &srcLayer.getWeights(matrixIdx);
+        _weights->addWeights(*new Weights(*srcWeights, lrs, *this));
+    }
+   _hregTemp = pyDictGetMatrix(paramsDict, "regTemp"); 
+   _regType = pyDictGetString(paramsDict, "regType");
+  
+    //delete &epsW; 
+    delete &weightSourceLayerIndices;
+    delete &weightSourceMatrixIndices;
+}
+
+
+void WeightCostLayer::copyToGPU(){
+  _regTemp.copyFromHost(*_hregTemp, true);
+  _weights.copyToGPU();
+}
+
+// Does this layer produce gradient for layers below?
+bool WeightCostLayer::isGradProducer() {
+    return false;
+}
+
+void WeightCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType, int passIdx) {
+  if(inpIdx==0){
+   int numCases = getPrev()[replicaIdx][0]->getActs().getNumCols();
+   //std::cout<<"number of cases = "<<numCases<<std::endl;
+   if(_regType=="dist"){// minimize distance between two sets of weights
+    
+     //std::cout<<"w0 size = "<<_weights[0].getW().getNumRows()<<","<<_weights[0].getW().getNumCols()<<std::endl; 
+     //std::cout<<"w1 size = "<<_weights[1].getW().getNumRows()<<","<<_weights[1].getW().getNumCols()<<std::endl; 
+     //std::cout<<"regTemp size = "<<_regTemp.getNumRows() << "," << _regTemp.getNumCols() << std::endl; 
+    _weights->at(0).getW().rightMult(_regTemp, 1, _cost); //cost =  theta * M   
+    _cost.subtract(_weights->at(1).getW()); //  cost = theta*M - beta
+    _cost.apply(NVMatrixOps::Square(), getActs()); // getActs = cost.^2
+    _costv.clear(); //Add by Saining, otherwise wrong during aggregate test outputs
+    _costv.push_back(getActs().sum() * numCases/2);
+   } else if(_regType == "simi"){//minimize the similarity between two sets of weights 
+                               //  \sum_{i in input layer 0 weights indices} \sum_{j in input layer 1 weights indices} regTemp_{ij}|w_i^T w_j|
+     NVMatrix& fweight_T = _weights->at(0).getW().getTranspose();
+     //std::cout<<"w0T size ="<<fweight_T.getNumRows()<<","<<fweight_T.getNumCols()<<std::endl;
+     //std::cout<<"w1 size = "<<_weights[1].getW().getNumRows()<<","<<_weights[1].getW().getNumCols()<<std::endl; 
+     fweight_T.rightMult(_weights->at(1).getW(), 1, _cost); // cost = theta'*beta
+    _cost.apply(NVMatrixOps::Abs(), getActs()); // cost = abs(theta'*beta)
+    getActs().eltwiseMult(_regTemp);  // getActs = abs(theta'*beta).*M;
+    _costv.clear();
+    _costv.push_back(getActs().sum() * numCases);
+    //std::cout<<"weight cost = "<<_costv.back()<<std::endl;
+    delete &fweight_T; 
+   }
+  }
+} 
+
+void WeightCostLayer::bpropCommon(NVMatrix& v, int replicaIdx, PASS_TYPE passType) {
+    for (int i = 0; i < _weights.getSize(); i++) {
+        if (_weights->at(i).getLearningRateSchedule().getBaseValue() > 0) {
+        //if (_weights[i].getEps() > 0) {
+            bpropWeights(i, passType);
+            // Increment its number of updates
+            _weights->at(i).incNumUpdates();
+        }
+    }
+}
+
+
+void WeightCostLayer::bpropWeights(int inpIdx, PASS_TYPE passType) {
+    if(_regType=="dist"){
+      float scaleCurGrad = (_weights->at(inpIdx).getNumUpdates() > 0 && passType != PASS_GC) * 1;
+      if(inpIdx==0)
+        _weights->at(0).getGrad().addProduct(_cost, _regTemp.getTranspose(), scaleCurGrad, -_coeff*_weights->at(0).getEps()); // - partial theta = - coeff*(theta*M - beta)*M'; 
+      else if(inpIdx==1)
+       _weights->at(1).getGrad().add(_cost, scaleCurGrad, _coeff*_weights->at(1).getEps()); // - partial beta = coeff* (theta*M - beta)
+    } else if (_regType=="simi"){
+      _cost.apply(NVMatrixOps::Sign(), getActsGrad());
+      getActsGrad().eltwiseMult(_regTemp);
+      float scaleCurGrad = (_weights->at(inpIdx).getNumUpdates() > 0 && passType != PASS_GC) * 1;
+      //std::cout<<"w0 size = "<<_weights[0].getW().getNumRows()<<","<<_weights[0].getW().getNumCols()<<", w1 size = "<<_weights[1].getW().getNumRows()<<","<<_weights[1].getW().getNumCols()<<", actsGrad size="<<getActsGrad().getNumRows()<<","<<getActsGrad().getNumCols()<<std::endl;
+      if(inpIdx==0)
+        _weights->at(0).getGrad().addProduct(_weights->at(1).getW(), getActsGrad().getTranspose(), scaleCurGrad, -_coeff*_weights->at(0).getEps());// - partial theta = -coeff*beta*(sign(theta'*beta).*M)'
+      else if(inpIdx==1) 
+        _weights->at(1).getGrad().addProduct(_weights->at(0).getW(), getActsGrad(), scaleCurGrad, -_coeff*_weights->at(1).getEps()); // - partial beta = - coeff*theta*(sign(theta'*beta).*M)
+   }
 }
 
