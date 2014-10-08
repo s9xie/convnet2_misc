@@ -168,6 +168,17 @@ public:
         }
     };
 
+    class BiggerEqualToScalar {
+    private:
+        const float scalar;
+    public:
+        BiggerEqualToScalar(const float _scalar) : scalar(_scalar) {
+        }
+        __device__ inline float operator()(const float a) const {
+            return a >= scalar;
+        }
+    };
+
     class EqualToScalar {
     private:
         const float scalar;

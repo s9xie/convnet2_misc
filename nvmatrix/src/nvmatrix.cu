@@ -647,6 +647,14 @@ void NVMatrix::biggerThanVector(NVMatrix& vec) {
     biggerThanVector(vec, *this);
 }
 
+void NVMatrix::biggerEqualTo(NVMatrix& b, NVMatrix& target) {
+    applyBinary(NVMatrixBinaryOps::BiggerEqualTo(), b, target);
+}
+
+void NVMatrix::biggerEqualTo(NVMatrix& b) {
+    biggerEqualTo(b, *this);
+}
+
 void NVMatrix::biggerEqualToVector(NVMatrix& vec, NVMatrix& target) {
     applyBinaryV(NVMatrixBinaryOps::BiggerEqualTo(), vec, target);
 }
@@ -661,14 +669,6 @@ void NVMatrix::equals(NVMatrix& b, NVMatrix& target) {
 
 void NVMatrix::equals(NVMatrix& m) {
     equals(m, *this);
-}
-
-void NVMatrix::biggerThanVector(NVMatrix& vec, NVMatrix& target) {
-    applyBinaryV(NVMatrixBinaryOps::BiggerThan(), vec, target);
-}
-
-void NVMatrix::biggerThanVector(NVMatrix& vec) {
-    biggerThanVector(vec, *this);
 }
 
 void NVMatrix::_checkBounds(int startRow, int endRow, int startCol, int endCol) const {
