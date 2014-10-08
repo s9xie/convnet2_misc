@@ -2688,7 +2688,7 @@ WeightCostLayer::WeightCostLayer(ConvNetThread* convNetThread, PyObject* paramsD
 
 void WeightCostLayer::copyToGPU(){
   _regTemp.copyFromHost(*_hregTemp, true);
-  _weights.copyToGPU();
+  _weights->copyToGPU();
 }
 
 // Does this layer produce gradient for layers below?
@@ -2728,8 +2728,8 @@ void WeightCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passTy
   }
 } 
 
-void WeightCostLayer::bpropCommon(NVMatrix& v, int replicaIdx, PASS_TYPE passType) {
-    for (int i = 0; i < _weights.getSize(); i++) {
+void WeightCostLayer::bpropCommon(NVMatrix& v, PASS_TYPE passType, int passIdx) {
+    for (int i = 0; i < _weights->getSize(); i++) {
         if (_weights->at(i).getLearningRateSchedule().getBaseValue() > 0) {
         //if (_weights[i].getEps() > 0) {
             bpropWeights(i, passType);
@@ -2740,7 +2740,7 @@ void WeightCostLayer::bpropCommon(NVMatrix& v, int replicaIdx, PASS_TYPE passTyp
 }
 
 
-void WeightCostLayer::bpropWeights(int inpIdx, PASS_TYPE passType) {
+void WeightCostLayer::bpropWeights(int inpIdx, PASS_TYPE passType, int passIdx) {
     if(_regType=="dist"){
       float scaleCurGrad = (_weights->at(inpIdx).getNumUpdates() > 0 && passType != PASS_GC) * 1;
       if(inpIdx==0)

@@ -767,7 +767,7 @@ protected:
     Matrix* _hregTemp;
     NVMatrix _regTemp;
     NVMatrix _cost;
-    WeightList _weights;
+    WeightList* _weights;
 public:
     void copyToGPU();  
     bool isGradProducer();  
