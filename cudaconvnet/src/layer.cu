@@ -2647,7 +2647,6 @@ void SumOfSquaresCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE 
 void SumOfSquaresCostLayer::bpropActs(NVMatrix& v, int replicaIdx, int inpIdx, float scaleTargets, PASS_TYPE passType) {
     _prev[replicaIdx][inpIdx]->getActsGrad().add(*_inputs[0], scaleTargets, -2 * _coeff);
 }
-dddd
 
 /* 
  * =======================================================
@@ -2655,16 +2654,19 @@ dddd
  * =======================================================
  */
 WeightCostLayer::WeightCostLayer(ConvNetThread* convNetThread, PyObject* paramsDict, int replicaID) : CostLayer(convNetThread, paramsDict, replicaID, false) {
+    
+    stringv& weightSourceLayers = *pyDictGetStringV(paramsDict, "weightSourceLayers");
     // Source layers for shared weights
     intv& weightSourceLayerIndices = *pyDictGetIntV(paramsDict, "weightSourceLayerIndices");
     // Weight matrix indices (inside the above source layers) for shared weights
     intv& weightSourceMatrixIndices = *pyDictGetIntV(paramsDict, "weightSourceMatrixIndices");
+    PyObject* pyEpsWList = PyDict_GetItemString(paramsDict, "epsW");
     //std::cout<<"layer= "<<_name<<"weights nums = "<<weightSourceLayerIndices.size()<<std::endl;
     //floatv& epsW = *pyDictGetFloatV(paramsDict, "epsW");
-    PyObject* pyEpsW = PyList_GetItem(pyEpsWList, i);
-    ParameterSchedule& lrs = ParameterSchedule::make(pyEpsW); // Learning rate schedule
-
     for (int i = 0; i < weightSourceLayers.size(); i++) {
+        PyObject* pyEpsW = PyList_GetItem(pyEpsWList, i);
+        ParameterSchedule& lrs = ParameterSchedule::make(pyEpsW); // Learning rate schedule
+
         std::string& srcLayerName = weightSourceLayers[i];
 
         int matrixIdx = weightSourceMatrixIndices[i];
@@ -2680,6 +2682,7 @@ WeightCostLayer::WeightCostLayer(ConvNetThread* convNetThread, PyObject* paramsD
     //delete &epsW; 
     delete &weightSourceLayerIndices;
     delete &weightSourceMatrixIndices;
+    delete &weightSourceLayers;
 }
 
 
@@ -2695,7 +2698,9 @@ bool WeightCostLayer::isGradProducer() {
 
 void WeightCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType, int passIdx) {
   if(inpIdx==0){
-   int numCases = getPrev()[replicaIdx][0]->getActs().getNumCols();
+   int numCases = Layer::getNumCases(*_inputs[0]);
+   //int numCases = getPrev()[replicaIdx][0]->getActs().getNumCols();
+   
    //std::cout<<"number of cases = "<<numCases<<std::endl;
    if(_regType=="dist"){// minimize distance between two sets of weights
     
