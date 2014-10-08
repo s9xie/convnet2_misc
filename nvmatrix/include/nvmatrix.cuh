@@ -304,6 +304,14 @@ public:
     void biggerThan(NVMatrix& m);
     void biggerThanVector(NVMatrix& vec, NVMatrix& target);
     void biggerThanVector(NVMatrix& vec);
+    
+    void biggerEqualTo(NVMatrix& m, NVMatrix& target);
+    void biggerEqualTo(NVMatrix& m);
+    void biggerEqualToVector(NVMatrix& vec, NVMatrix& target);
+    void biggerEqualToVector(NVMatrix& vec);
+    
+
+
     void equals(NVMatrix& m, NVMatrix& target);
     void equals(NVMatrix& m);
 

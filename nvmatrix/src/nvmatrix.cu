@@ -639,6 +639,22 @@ void NVMatrix::biggerThan(NVMatrix& b) {
     biggerThan(b, *this);
 }
 
+void NVMatrix::biggerThanVector(NVMatrix& vec, NVMatrix& target) {
+    applyBinaryV(NVMatrixBinaryOps::BiggerThan(), vec, target);
+}
+
+void NVMatrix::biggerThanVector(NVMatrix& vec) {
+    biggerThanVector(vec, *this);
+}
+
+void NVMatrix::biggerEqualToVector(NVMatrix& vec, NVMatrix& target) {
+    applyBinaryV(NVMatrixBinaryOps::BiggerEqualTo(), vec, target);
+}
+
+void NVMatrix::biggerEqualToVector(NVMatrix& vec) {
+    biggerEqualToVector(vec, *this);
+}
+
 void NVMatrix::equals(NVMatrix& b, NVMatrix& target) {
     applyBinary(NVMatrixBinaryOps::Equals(), b, target);
 }
