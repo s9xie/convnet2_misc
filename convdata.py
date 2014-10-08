@@ -313,6 +313,13 @@ class TasksCotrDataProvider(LabeledDataProvider):
         if self.scalar_mean >= 0:
             self.data_mean_crop = self.scalar_mean
     
+    def get_softmax_agg(self, aggIdx):
+        return self.batch_meta['aggs'][aggIdx]
+
+    def get_avg_template(self):
+        print "get_avg_template"
+        return self.batch_meta['averageTemplate']
+
     def get_num_classes(self, task=-1):
 	if task != -1:
            return len(self.batch_meta['task_label_names'][task]) 

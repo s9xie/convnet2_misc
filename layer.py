@@ -1187,6 +1187,32 @@ class DataLayerParser(LayerParser):
         print "Initialized data layer '%s', producing %d outputs" % (name, dic['outputs'])
         return dic
 
+
+class AggSoftmaxLayerParser(LayerWithInputParser):
+    def __init__(self):
+        LayerWithInputParser.__init__(self, num_inputs=1)
+
+    def parse(self, name, mcp, prev_layers, model):
+        dic = LayerWithInputParser.parse(self, name, mcp, prev_layers, model)
+        dic['outputs'] = mcp.safe_get_int(name, 'outputs')
+        dic['aggIdx'] = mcp.safe_get_int(name, 'aggIdx')
+        dic['agg'] = model.train_data_provider.get_softmax_agg(aggIdx = dic['aggIdx'])
+        print "Initialized aggregate softmax layer '%s', producing %d outputs" % (name, dic['outputs'])
+        return dic
+
+class AggCoarseFineSoftmaxLayerParser(LayerWithInputParser):
+    def __init__(self):
+        LayerWithInputParser.__init__(self, num_inputs=2)
+
+    def parse(self, name, mcp, prev_layers, model):
+        dic = LayerWithInputParser.parse(self, name, mcp, prev_layers, model)
+        dic['outputs'] = mcp.safe_get_int(name, 'outputs')
+        dic['htype'] = mcp.safe_get(name, 'htype')
+        dic['agg'] = model.train_data_provider.get_reg_template(coarseTofine=True)
+        dic['avgagg'] = model.train_data_provider.get_avg_template()
+        print "Initialized aggregate softmax layer '%s', producing %d outputs" % (name, dic['outputs'])
+        return dic
+
 class SoftmaxLayerParser(LayerWithInputParser):
     def __init__(self):
         LayerWithInputParser.__init__(self, num_inputs=1)

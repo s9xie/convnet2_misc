@@ -2736,7 +2736,7 @@ void WeightCostLayer::bpropCommon(NVMatrix& v, PASS_TYPE passType) {
             // Increment its number of updates
             _weights->at(i).incNumUpdates();
         }
-    }
+    }d
 }
 
 
