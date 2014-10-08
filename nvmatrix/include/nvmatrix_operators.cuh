@@ -288,6 +288,13 @@ public:
         }
     };
 
+    class BiggerEqualTo {
+    public:
+        __device__ inline float operator()(const float a, const float b) const {
+            return a >= b;
+        }
+    };
+
     class Divide : public BinaryOp {
     public:
         __device__ inline float operator()(const float a, const float b) const  {
