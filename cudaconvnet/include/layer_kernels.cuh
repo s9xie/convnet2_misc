@@ -81,6 +81,7 @@ void computeLogregGrad(NVMatrix& labels, NVMatrix& probs, NVMatrix& target, bool
 // to avoi dividing and then multiplying by quantities that may be near zero.
 void computeCrossEntSoftmaxGrad(NVMatrix& labels, NVMatrix& probs, NVMatrix& target, bool add, float coeff);
 void computeLogregSoftmaxGrad(NVMatrix& labels, NVMatrix& probs, NVMatrix& target, bool add, float coeff);
+void computeLogregAggSoftmaxGrad(NVMatrix& labels, NVMatrix& probs, NVMatrix& aggsum, NVMatrix& target, bool add, float coeff);
 void computeEltwiseMaxGrad(NVMatrix& actGrad, NVMatrix& input, NVMatrix& output, NVMatrix& target, bool add);
 void computeMultiSoftmaxCost(NVMatrix& labels, NVMatrix& probs, NVMatrix& maxProbs, NVMatrix& labelLogProbs_out,
                              NVMatrix& correctProbs_out, NVMatrix& top5Probs_out, int setSize);
