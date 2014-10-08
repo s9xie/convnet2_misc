@@ -97,7 +97,7 @@ protected:
     bool _gradConsumer, _foundGradConsumers, _trans;
     std::map<int,bool> _bwdTerminal; // One bool per pass
     int _numGradProducersNext;
-d    int _actsTarget, _actsGradTarget;
+    int _actsTarget, _actsGradTarget;
     std::string _name, _type;
     intv _nextDeviceIDs, _prevDeviceIDs;
     HostNVMatrix _hostMemFwd;
