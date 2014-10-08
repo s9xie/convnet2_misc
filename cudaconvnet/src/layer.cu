@@ -1266,7 +1266,8 @@ void AggSoftmaxLayer::bpropActs(NVMatrix& v, int replicaIdx, int inpIdx, float s
  * AggCoarseFineSoftmaxLayer
  * =======================
  */
-AggCoarseFineSoftmaxLayer::AggCoarseFineSoftmaxLayer(ConvNetThread* convNetThread, PyObject* paramsDict, int replicaID) : Layer(convNet, paramsDict, true) {
+AggCoarseFineSoftmaxLayer::AggCoarseFineSoftmaxLayer(ConvNetThread* convNetThread, PyObject* paramsDict, int replicaID) 
+  : Layer(convNetThread, paramsDict, replicaID, true), _doUpperGrad(false) {
   _hCtFAgg = pyDictGetMatrix(paramsDict, "agg");
   _htype = pyDictGetString(paramsDict, "htype");
   _hAvgAgg = pyDictGetMatrix(paramsDict, "avgagg");

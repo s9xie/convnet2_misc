@@ -97,7 +97,7 @@ protected:
     bool _gradConsumer, _foundGradConsumers, _trans;
     std::map<int,bool> _bwdTerminal; // One bool per pass
     int _numGradProducersNext;
-    int _actsTarget, _actsGradTarget;
+d    int _actsTarget, _actsGradTarget;
     std::string _name, _type;
     intv _nextDeviceIDs, _prevDeviceIDs;
     HostNVMatrix _hostMemFwd;
@@ -321,6 +321,22 @@ protected:
 public:
     void copyToGPU();
     AggSoftmaxLayer(ConvNetThread* convNetThread, PyObject* paramsDict, int replicaID);
+    void setDoUpperGrad(bool b);
+};
+
+class AggCoarseFineSoftmaxLayer : public Layer {
+protected:
+    bool _doUpperGrad;
+    Matrix* _hCtFAgg;
+    Matrix* _hAvgAgg;
+    NVMatrix _CtFAgg;
+    NVMatrix _AvgAgg;
+    std::string _htype;
+    void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType, int passIdx);
+public:
+    void copyToGPU();    
+    bool isGradProducer();
+    AggCoarseFineSoftmaxLayer(ConvNetThread* convNetThread, PyObject* paramsDict, int replicaID);
     void setDoUpperGrad(bool b);
 };
 
@@ -739,6 +755,27 @@ public:
     void resetPassIdx();
     
     static CostLayer& make(ConvNetThread* convNetThread, PyObject* paramsDict, std::string& type, int replicaID);
+};
+
+/*
+ * Input 0: WeightLayer 1 
+ * Input 1: WeigthLayer 2
+ */
+class WeightCostLayer : public CostLayer {
+protected:
+    std::string  _regType;
+    Matrix* _hregTemp;
+    NVMatrix _regTemp;
+    NVMatrix _cost;
+    WeightList _weights;
+public:
+    void copyToGPU();  
+    bool isGradProducer();  
+    void bpropCommon(NVMatrix& v, PASS_TYPE passType, int passIdx);
+    void bpropWeights(int inpIdx, PASS_TYPE passType, int passIdx);
+    void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType, int passIdx);
+    //void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
+    WeightCostLayer(ConvNetThread* convNetThread, PyObject* paramsDict, int replicaID);
 };
 
 /*
