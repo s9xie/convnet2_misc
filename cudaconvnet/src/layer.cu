@@ -2744,18 +2744,18 @@ void WeightCostLayer::bpropWeights(int inpIdx, PASS_TYPE passType) {
     if(_regType=="dist"){
       float scaleCurGrad = (_weights->at(inpIdx).getNumUpdates() > 0 && passType != PASS_GC) * 1;
       if(inpIdx==0)
-        _weights->at(0).getGrad().addProduct(_cost, _regTemp.getTranspose(), scaleCurGrad, -_coeff*_weights->at(0).getEps()); // - partial theta = - coeff*(theta*M - beta)*M'; 
+        _weights->at(0).getGrad().addProduct(_cost, _regTemp.getTranspose(), scaleCurGrad, -_coeff*_weights->at(0).getEps(getConvNet().getTrainingProgress())); // - partial theta = - coeff*(theta*M - beta)*M'; 
       else if(inpIdx==1)
-       _weights->at(1).getGrad().add(_cost, scaleCurGrad, _coeff*_weights->at(1).getEps()); // - partial beta = coeff* (theta*M - beta)
+       _weights->at(1).getGrad().add(_cost, scaleCurGrad, _coeff*_weights->at(1).getEps(getConvNet().getTrainingProgress())); // - partial beta = coeff* (theta*M - beta)
     } else if (_regType=="simi"){
       _cost.apply(NVMatrixOps::Sign(), getActsGrad());
       getActsGrad().eltwiseMult(_regTemp);
       float scaleCurGrad = (_weights->at(inpIdx).getNumUpdates() > 0 && passType != PASS_GC) * 1;
       //std::cout<<"w0 size = "<<_weights[0].getW().getNumRows()<<","<<_weights[0].getW().getNumCols()<<", w1 size = "<<_weights[1].getW().getNumRows()<<","<<_weights[1].getW().getNumCols()<<", actsGrad size="<<getActsGrad().getNumRows()<<","<<getActsGrad().getNumCols()<<std::endl;
       if(inpIdx==0)
-        _weights->at(0).getGrad().addProduct(_weights->at(1).getW(), getActsGrad().getTranspose(), scaleCurGrad, -_coeff*_weights->at(0).getEps());// - partial theta = -coeff*beta*(sign(theta'*beta).*M)'
+        _weights->at(0).getGrad().addProduct(_weights->at(1).getW(), getActsGrad().getTranspose(), scaleCurGrad, -_coeff*_weights->at(0).getEps(getConvNet().getTrainingProgress()));// - partial theta = -coeff*beta*(sign(theta'*beta).*M)'
       else if(inpIdx==1) 
-        _weights->at(1).getGrad().addProduct(_weights->at(0).getW(), getActsGrad(), scaleCurGrad, -_coeff*_weights->at(1).getEps()); // - partial beta = - coeff*theta*(sign(theta'*beta).*M)
+        _weights->at(1).getGrad().addProduct(_weights->at(0).getW(), getActsGrad(), scaleCurGrad, -_coeff*_weights->at(1).getEps(getConvNet().getTrainingProgress())); // - partial beta = - coeff*theta*(sign(theta'*beta).*M)
    }
 }
 
