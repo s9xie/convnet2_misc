@@ -771,8 +771,8 @@ protected:
 public:
     void copyToGPU();  
     bool isGradProducer();  
-    void bpropCommon(NVMatrix& v, PASS_TYPE passType, int passIdx);
-    void bpropWeights(int inpIdx, PASS_TYPE passType, int passIdx);
+    void bpropCommon(NVMatrix& v, PASS_TYPE passType);
+    void bpropWeights(int inpIdx, PASS_TYPE passType);
     void fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passType, int passIdx);
     //void bpropActs(NVMatrix& v, int inpIdx, float scaleTargets, PASS_TYPE passType);
     WeightCostLayer(ConvNetThread* convNetThread, PyObject* paramsDict, int replicaID);

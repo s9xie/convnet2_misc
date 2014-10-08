@@ -2728,7 +2728,7 @@ void WeightCostLayer::fpropActs(int inpIdx, float scaleTargets, PASS_TYPE passTy
   }
 } 
 
-void WeightCostLayer::bpropCommon(NVMatrix& v, PASS_TYPE passType, int passIdx) {
+void WeightCostLayer::bpropCommon(NVMatrix& v, PASS_TYPE passType) {
     for (int i = 0; i < _weights->getSize(); i++) {
         if (_weights->at(i).getLearningRateSchedule().getBaseValue() > 0) {
         //if (_weights[i].getEps() > 0) {
@@ -2740,7 +2740,7 @@ void WeightCostLayer::bpropCommon(NVMatrix& v, PASS_TYPE passType, int passIdx) 
 }
 
 
-void WeightCostLayer::bpropWeights(int inpIdx, PASS_TYPE passType, int passIdx) {
+void WeightCostLayer::bpropWeights(int inpIdx, PASS_TYPE passType) {
     if(_regType=="dist"){
       float scaleCurGrad = (_weights->at(inpIdx).getNumUpdates() > 0 && passType != PASS_GC) * 1;
       if(inpIdx==0)
