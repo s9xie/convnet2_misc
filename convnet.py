@@ -282,6 +282,8 @@ class ConvNet(IGPUModel):
         DataProvider.register_data_provider('image', 'JPEG-encoded image data provider', ImageDataProvider)
         DataProvider.register_data_provider('taskscotr', 'JPEG-encoded image data provider with Tasks', TasksCotrDataProvider)
         DataProvider.register_data_provider('cifar', 'CIFAR-10 data provider', CIFARDataProvider)
+        DataProvider.register_data_provider('ocr', 'OCR data provider', OCRDataProvider)
+
   
         return op
 
